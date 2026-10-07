@@ -1,23 +1,35 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, ShieldCheck, AlertCircle, Sparkles } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, ShieldCheck, AlertCircle, Sparkles, CheckCircle2, MailCheck } from 'lucide-react';
 import { AxiosError } from 'axios';
 
+interface LoginLocationState {
+  verifiedEmail?: string;
+  verifiedMessage?: string;
+}
+
 export const LoginPage: React.FC = () => {
-  const [identifier, setIdentifier] = useState('');
+  const location = useLocation();
+  const loginState = (location.state as LoginLocationState) || {};
+
+  const [identifier, setIdentifier] = useState(loginState.verifiedEmail || '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(loginState.verifiedMessage || null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { login } = useAuth();
+  const { login, resendOtp } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setInfoMessage(null);
+    setUnverifiedEmail(null);
 
     if (!identifier.trim()) {
       setErrorMessage('Please enter your email or username');
@@ -35,7 +47,10 @@ export const LoginPage: React.FC = () => {
     } catch (err: unknown) {
       if (err instanceof AxiosError && err.response) {
         const data = err.response.data;
-        if (typeof data?.detail === 'string') {
+        if (err.response.status === 403 && data?.detail?.code === 'EMAIL_NOT_VERIFIED') {
+          setUnverifiedEmail(data.detail.email || (identifier.includes('@') ? identifier.trim() : null));
+          setErrorMessage(data.detail.message || 'Email not verified. Please verify your email with OTP.');
+        } else if (typeof data?.detail === 'string') {
           setErrorMessage(data.detail);
         } else if (data?.detail?.message) {
           setErrorMessage(data.detail.message);
@@ -48,6 +63,29 @@ export const LoginPage: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleGoToVerify = async () => {
+    const targetEmail = unverifiedEmail || (identifier.includes('@') ? identifier.trim() : '');
+    if (targetEmail) {
+      try {
+        const res = await resendOtp(targetEmail);
+        navigate('/verify-otp', {
+          state: {
+            email: targetEmail,
+            devOtp: res.dev_otp || res.otp,
+            expiresIn: res.expires_in || 300,
+            cooldown: res.cooldown || 30,
+          },
+        });
+        return;
+      } catch {
+        // Navigate even if cooldown is active
+      }
+    }
+    navigate(`/verify-otp${targetEmail ? `?email=${encodeURIComponent(targetEmail)}` : ''}`, {
+      state: { email: targetEmail },
+    });
   };
 
   const handleQuickFill = (name: string, pass: string) => {
@@ -76,6 +114,17 @@ export const LoginPage: React.FC = () => {
 
         {/* Form Container */}
         <div className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl">
+          {/* Verified Success Banner */}
+          {infoMessage && (
+            <div className="mb-6 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm flex items-start gap-3">
+              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-semibold text-emerald-200">Email Verified</p>
+                <p className="text-xs text-emerald-300/90 mt-0.5">{infoMessage}</p>
+              </div>
+            </div>
+          )}
+
           {/* Error Banner */}
           {errorMessage && (
             <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm flex items-start gap-3">
@@ -83,6 +132,16 @@ export const LoginPage: React.FC = () => {
               <div className="flex-1">
                 <p className="font-semibold text-rose-200">Authentication Failed</p>
                 <p className="text-xs text-rose-300/90 mt-0.5">{errorMessage}</p>
+                {unverifiedEmail && (
+                  <button
+                    type="button"
+                    onClick={handleGoToVerify}
+                    className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    <MailCheck className="w-3.5 h-3.5" />
+                    <span>Verify Email with Dev OTP</span>
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -205,12 +264,20 @@ export const LoginPage: React.FC = () => {
         </div>
 
         {/* Footer Link */}
-        <p className="mt-6 text-center text-sm text-slate-400">
-          Don&apos;t have an account yet?{' '}
-          <Link to="/register" className="font-semibold text-indigo-400 hover:text-indigo-300 transition-colors">
-            Create an account
-          </Link>
-        </p>
+        <div className="mt-6 text-center space-y-2 text-sm text-slate-400">
+          <p>
+            Don&apos;t have an account yet?{' '}
+            <Link to="/register" className="font-semibold text-indigo-400 hover:text-indigo-300 transition-colors">
+              Create an account
+            </Link>
+          </p>
+          <p className="text-xs text-slate-500">
+            Have an unverified account?{' '}
+            <Link to="/verify-otp" className="font-medium text-emerald-400 hover:text-emerald-300 transition-colors">
+              Verify Email OTP
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

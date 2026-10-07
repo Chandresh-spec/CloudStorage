@@ -64,6 +64,12 @@ export const Navbar: React.FC = () => {
           ) : (
             <div className="flex items-center gap-2">
               <Link
+                to="/verify-otp"
+                className="text-xs sm:text-sm font-medium text-emerald-400 hover:text-emerald-300 px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                Verify OTP
+              </Link>
+              <Link
                 to="/login"
                 className="text-xs sm:text-sm font-medium text-slate-300 hover:text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors"
               >

@@ -26,7 +26,7 @@ class Settings(BaseSettings):
 
 
     # Redis & OTP settings
-    redis_url: str = "redis://localhost:6379/0"
+    redis_url: str = "redis://redis:6379/0"
     otp_secret: str = "dev-otp-hmac-secret-key-change-in-prod"
     otp_cooldown: int = 30
     otp_max_attempts: int = 5

@@ -57,11 +57,23 @@ export const RegisterPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      await register(name, email, password);
-      setSuccessMessage('Account created successfully! Redirecting to sign in...');
+      const res = await register(name, email, password);
+      const generatedOtp = res.dev_otp || res.otp;
+      setSuccessMessage(
+        generatedOtp
+          ? `Account created! Development OTP: ${generatedOtp}. Redirecting to verification...`
+          : 'Account created! Redirecting to OTP verification...'
+      );
       setTimeout(() => {
-        navigate('/login');
-      }, 1500);
+        navigate('/verify-otp', {
+          state: {
+            email: res.email || email.trim().toLowerCase(),
+            devOtp: generatedOtp,
+            expiresIn: res.expires_in || 300,
+            cooldown: res.cooldown || 30,
+          },
+        });
+      }, 900);
     } catch (err: unknown) {
       if (err instanceof AxiosError && err.response) {
         const data = err.response.data;
